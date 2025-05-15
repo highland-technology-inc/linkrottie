@@ -1,0 +1,21 @@
+[project]
+name = 'linkrottie'
+description = 'Git repository backup tool with submodule support'
+readme = 'README.rst'
+authors = [
+  {name = "Rob Gaddi", email = "rgaddi@highlandtechnology.com"},
+]
+license = 'BSD-3-Clause'
+
+dynamic = ["version", "readme"]
+dependencies = [
+  "requests>2.31.0"
+]
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "linkrottie.__version__"}
+readme = {file = ["README.rst"]}
