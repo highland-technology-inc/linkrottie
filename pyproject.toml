@@ -5,9 +5,9 @@ readme = 'README.rst'
 authors = [
   {name = "Rob Gaddi", email = "rgaddi@highlandtechnology.com"},
 ]
-license = 'BSD-3-Clause'
+license = 'GPL-3.0-or-later'
 
-dynamic = ["version", "readme"]
+dynamic = ["version"]
 dependencies = [
   "requests>2.31.0"
 ]
@@ -18,4 +18,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
 version = {attr = "linkrottie.__version__"}
-readme = {file = ["README.rst"]}
+
+[tool.setuptools.packages]
+find = {}  # Scanning implicit namespaces is active by default
