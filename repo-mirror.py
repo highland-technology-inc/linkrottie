@@ -4,7 +4,8 @@ import requests
 import json
 import re
 import subprocess
-import pathlib
+from pathlib import Path
+import os
 
 def get_api_key() -> str:
     with open('API_KEY', 'r') as f:
@@ -43,44 +44,67 @@ def github_org_repos(organization = 'highland-technology-inc'):
         except KeyError:
             break
     
-def _walk_until_git(start_path:pathlib.Path, follow_symlinks=False):
+def _is_git_dir(start_path:Path) -> bool:
+    """Determine if p is a git directory.
+    
+    This is taken from the comments on is_git_directory() in the git source, 
+    though a slightly looser version since we'll only look for HEAD and not try 
+    to validate it.
+    
+    Basically, this assumes a non-hostile filesystem with git repos that
+    want to be found.
+    """
+
+    head = start_path / 'HEAD'
+    try:
+        objects = os.environ['GIT_OBJECT_DIRECTORY']
+    except KeyError:
+        objects = start_path / 'objects'
+    refs = start_path / 'refs'
+    
+    return (
+        (head.is_file() or head.is_symlink()) and
+        objects.is_dir() and
+        refs.is_dir()
+    )
+    
+def _walk_until_git(start_path:Path, follow_symlinks=False):
     """Walk all directories under start_path, yielding git repos.
     
     This is similar to Path.walk, but won't keep recursively looking once
     a Git repos has been found.  That's a pretty minor efficiency gain, unless
-    what you're pointed at is largely git repos.
+    what you're pointed at is largely git repos, which in our case it's likely
+    to be.
     
     Yields:
         Paths to git repositories.
     """
     
-    subdirs = []
-    filematch = {'config', 'description', 'HEAD'}
-    dirmatch  = {'objects', 'refs'}
-    for p in start_path.iterdir():
-        if p.is_symlink():
-            if follow_symlinks:
-                subdirs.append(p)
-        elif p.is_dir():
-            subdirs.append(p)
-            dirmatch.discard(p.name)
-        elif p.is_file():
-            filematch.discard(p.name)
-        
-        # Have we determined this to be a git repo?
-        if not filematch and not dirmatch:
-            if start_path.name == '.git':
-                # This is a working repo
-                yield start_path.parent
-            else:
-                # This is a bare repo
-                yield start_path
-            # In either case, we're done recurring
-            return
+    # First, check to see if this is a git directory.
+    # If it is, we're done.
+    #
+    if _is_git_dir(start_path):
+        # Should only be a git directory if it's a bare repo; if this is
+        # a .git subdirectory it's an error.
+        if start_path.name == '.git':
+            raise ValueError('start_path is .git subdirectory')
+            
+        yield start_path
+        return
     
-    # We've analyzed this directory, and it's not a git repo.
-    for d in subdirs:
-        yield from _walk_until_git(d, follow_symlinks)
+    # See if there is a .git subdirectory that makes this a working copy.
+    git_subdir = start_path / '.git'
+    if git_subdir.is_dir() and _is_git_dir(git_subdir):
+        yield start_path
+        return
+        
+    # Nope, recursion is called for.  Go down through any subdirectories.
+    for p in start_path.iterdir():
+        if (p.is_symlink() and follow_symlinks):
+            p = p.resolve(strict=True)
+            
+        if p.is_dir():
+            yield from _walk_until_git(p, follow_symlinks)
     
 def local_repos(start_path, follow_symlinks=False):
     """Get all local repositories under a path.
@@ -89,7 +113,7 @@ def local_repos(start_path, follow_symlinks=False):
         Paths to git respositories.
     """
     
-    top = pathlib.Path(start_path)
+    top = Path(start_path)
     yield from _walk_until_git(top)
     
 def get_submodules_file(repo_path) -> str:
