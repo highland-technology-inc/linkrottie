@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 import os
 
+from collections import namedtuple
+
 def get_api_key() -> str:
     with open('API_KEY', 'r') as f:
         key = f.readline().strip()
@@ -85,7 +87,9 @@ def _walk_until_git(start_path:Path, follow_symlinks=False):
     #
     if _is_git_dir(start_path):
         # Should only be a git directory if it's a bare repo; if this is
-        # a .git subdirectory it's an error.
+        # a .git subdirectory it's an error (because we started in what is
+        # already a subdirectory of the repo.
+        #
         if start_path.name == '.git':
             raise ValueError('start_path is .git subdirectory')
             
@@ -145,7 +149,42 @@ def get_submodules_file(repo_path) -> str:
         result.check_returncode()
 
     return result.stdout
+
+
+RemoteRepo = namedtuple('RemoteRepo', 'scheme user host port path'.split())
+
+def parse_url(url: str):
+    """Parse a URL that points to a remote git repository into
+    constituent parts."""
     
+    # Look for URL specified locations
+    mo = re.match(r'''
+        (\w+)://                # scheme,   exclude ://
+        (?:([^/?#@:]+)@)?       # user,     exclude @
+        ([^/?#@:]*)             # host
+        (?::(\d+))?             # port,     exclude :
+        (/.*)                   # path
+    ''', url, re.X)
+    
+    if mo:
+        # Extract and clean the parts of the URL
+        return RemoteRepo(*mo.groups())
+    
+    # Look for SCP specified locations
+    mo = re.match(r'''
+        (?:([^/?#@:]+)@)?       # user,     exclude @
+        ([^/?#@:]*)             # host
+        :
+        (.*)                    # path
+    ''', url, re.X)
+    if mo:
+        scheme = port = None
+        user, host, path = mo.groups()
+        return RemoteRepo(scheme, user, host, port, path)
+        
+    # Look for local file specified locations
+    return RemoteRepo('', '', '', '', url)
+
 if __name__ == '__main__':
     #print(get_repos())
     pass
