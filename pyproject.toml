@@ -12,6 +12,9 @@ dependencies = [
   "requests>2.31.0"
 ]
 
+[project.optional-dependencies]
+test = ["pytest>=8.3"]
+
 [build-system]
 requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
@@ -20,4 +23,4 @@ build-backend = "setuptools.build_meta"
 version = {attr = "linkrottie.__version__"}
 
 [tool.setuptools.packages]
-find = {}  # Scanning implicit namespaces is active by default
+find = {}

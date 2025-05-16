@@ -54,7 +54,7 @@ class TaskQueue:
 		(task, desc, args, kwargs) = self._queue.pop(0)
 		log.debug("Executing {%s,%s,%s}", desc, args, kwargs)
 		task(*args, **kwargs)
-		log.debug("Completed {%s}", desc, args, kwargs)
+		log.debug("Completed {%s}", desc)
 	
 	def runall(self):
 		"""Executes all events in the queue.
