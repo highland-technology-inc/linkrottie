@@ -12,6 +12,9 @@ dependencies = [
   "requests>2.31.0"
 ]
 
+[project.scripts]
+linkrottie = "linkrottie:main.main"
+
 [project.optional-dependencies]
 test = ["pytest>=8.3"]
 
@@ -24,3 +27,7 @@ version = {attr = "linkrottie.__version__"}
 
 [tool.setuptools.packages]
 find = {}
+
+[tool.pytest.ini_options]
+minversion = "8.3"
+testpaths = ["test"]

@@ -1,0 +1,13 @@
+[local]
+git = 'storage/git'
+
+[gather]
+local = true
+remotes = [
+    'ssh://git@github.com/highland-technology-inc/PyPadsParser.git',
+    'git@github.com:highland-technology-inc/23E940.git'
+]
+
+[gather.github]
+auth_key_file = './API_KEY'
+# organization = ['highland-technology-inc']

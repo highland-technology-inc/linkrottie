@@ -2,6 +2,7 @@
 # Project specific ignores
 API_KEY
 ve/
+storage/
 
 ###############################
 # GitHub standard ignores
