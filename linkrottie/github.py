@@ -57,11 +57,12 @@ class Github:
             except KeyError:
                 break
 
-    def mirror_org_repos(self, local:Path):
+    def mirror_org_repos(self):
         tq = taskqueue()
         import pprint
         for org in self.organization:
             for repo in self._get_org_repos(org):
                 fullname = repo['full_name']
                 ssh  = repo['ssh_url']
-                tq.append(git.mirror_repo, ssh, local / 'github.com' / (fullname + '.git'), desc=f'Mirror {git_url}')
+                local = git.local()
+                tq.append(local.mirror_repo, ssh, desc=f'Mirror {fullname}')

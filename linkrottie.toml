@@ -1,11 +1,16 @@
 [local]
 git = 'storage/git'
 
+[local.aliases]
+# The aliases map allows remapping of existing URLs onto replacement ones.
+'git://git.buildroot.net/buildroot' = 'https://gitlab.com/buildroot.org/buildroot/'
+
 [gather]
 local = true
 remotes = [
     'ssh://git@github.com/highland-technology-inc/PyPadsParser.git',
-    'git@github.com:highland-technology-inc/23E940.git'
+    'git@github.com:highland-technology-inc/23E940.git',
+    'git@github.com:highland-technology-inc/p940-brlinux.git'
 ]
 
 [gather.github]

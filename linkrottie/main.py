@@ -3,7 +3,7 @@ import tomllib
 import argparse
 from pathlib import Path
 
-from .git import *
+from . import git
 from .github import Github
 from .taskqueue import taskqueue
 
@@ -34,23 +34,21 @@ def main(argv = None):
         config_data = tomllib.load(f)
     
     tq = taskqueue()
+    local = git.local(config_data['local'])
     
     # Handle Github
-    local_git = Path(config_data['local']['git'])
     try:
         github_config = config_data['gather']['github']
         log.debug('Configuring gather.github')
         gh = Github(github_config)
-        tq.append(gh.mirror_org_repos, local_git)
+        tq.append(gh.mirror_org_repos)
     except KeyError:
         pass
         
     # Handle explicit remotes
     remotes = config_data['gather'].get('remotes', [])
     for url in remotes:
-        repo = parse_url(url)
-        local = local_git / repo.host / repo.path.lstrip('/')
-        tq.append(mirror_repo, url, local)
+        tq.append(local.mirror_repo, url)
     
     # Run the taskqueue
     tq.runall()
