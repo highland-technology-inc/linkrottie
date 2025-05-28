@@ -20,13 +20,26 @@ def main(argv = None):
     parser.add_argument('--verbose', '-v', action='count', default=0)
     argns = parser.parse_args(argv)
     
-    if argns.verbose >= 2:
-        level = logging.DEBUG
-    elif argns.verbose == 1:
-        level = logging.INFO
-    else:
-        level = logging.WARNING
-    logging.basicConfig(level=level, filename='linkrottie.log')
+    # Configure logging
+    rootlogger = logging.getLogger('')
+    rootlogger.setLevel(logging.DEBUG)
+    if argns.verbose:
+        filelog = logging.FileHandler('linkrottie.log')
+        filelog.setFormatter(
+            logging.Formatter('%(levelname)-8s:%(asctime)-24s:%(name)s: %(message)s')
+        )
+
+        level = logging.INFO if argns.verbose == 1 else logging.DEBUG
+        filelog.setLevel(level)
+
+        rootlogger.addHandler(filelog)
+    
+    consolelog = logging.StreamHandler()
+    consolelog.setFormatter(
+        logging.Formatter('%(levelname)s:%(name)s: %(message)s')
+    )
+    consolelog.setLevel(logging.INFO if argns.verbose else logging.WARNING)
+    rootlogger.addHandler(consolelog)
     
     # Read the options file
     log.debug('Parsing configuration file %s', argns.config)
