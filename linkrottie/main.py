@@ -38,10 +38,11 @@ def main(argv = None):
     
     # Handle Github
     try:
-        github_config = config_data['gather']['github']
+        github_gather = config_data['gather']['github']
         log.debug('Configuring gather.github')
-        gh = Github(github_config)
-        tq.append(gh.mirror_org_repos)
+        for org, config in github_gather.items():
+            gh = Github(org, config)
+            tq.append(gh.mirror_org_repos)
     except KeyError:
         pass
         

@@ -13,6 +13,7 @@ remotes = [
     'git@github.com:highland-technology-inc/p940-brlinux.git'
 ]
 
-[gather.github]
+[gather.github.highland-technology-inc]
 auth_key_file = './API_KEY'
-# organization = ['highland-technology-inc']
+ignore = ['OsvvmLibraries', 'template-fw', 'common-fw', 'FreeRTOS-Kernel', 'STM32CubeF2', 'buildroot']
+dry_run = true
