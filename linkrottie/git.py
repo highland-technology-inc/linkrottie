@@ -3,6 +3,8 @@ import subprocess
 import re
 from collections import namedtuple
 from pathlib import Path
+from urllib.parse import urljoin
+from typing import Self
 
 from .taskqueue import taskqueue
 
@@ -82,9 +84,13 @@ class Local:
                 remote = remote.replace(original, replacement)
                 break
 
-        repo = parse_url(remote)
+        repo = RemoteRepo.parse_url(remote)
         local = self.path / repo.host / repo.path.lstrip('/')
         
+        if local in self.already_mirrored:
+            log.debug('Already evalulated %s', local)
+            return
+
         if not local.is_dir():
             self._clone(remote, local)
         else:
@@ -93,41 +99,106 @@ class Local:
         
         tq = taskqueue()
         for url in self._get_submodules(local):
+            if url.startswith('..') or url.startswith('/'):
+                # This is a local reference, rather than an absolute one.
+                # Slap it together with the existing remote URL to get an
+                # absolute one instead.
+                log.debug('%s has relative submodule %s', remote, url)
+                url = repo.join_url(url).deparse()
+
             log.debug('Found submodule %s', url)
             tq.append(self.mirror_repo, url, desc='Submodule ' + url)
 
-RemoteRepo = namedtuple('RemoteRepo', 'scheme user host port path'.split())
-def parse_url(url: str):
-    """Parse a URL that points to a remote git repository into
-    constituent parts."""
-    
-    # Look for URL specified locations
-    mo = re.match(r'''
-        (\w+)://                # scheme,   exclude ://
-        (?:([^/?#@:]+)@)?       # user,     exclude @
-        ([^/?#@:]*)             # host
-        (?::(\d+))?             # port,     exclude :
-        (/.*)                   # path
-    ''', url, re.X)
-    
-    if mo:
-        # Extract and clean the parts of the URL
-        return RemoteRepo(*mo.groups())
-    
-    # Look for SCP specified locations
-    mo = re.match(r'''
-        (?:([^/?#@:]+)@)?       # user,     exclude @
-        ([^/?#@:]*)             # host
-        :
-        (.*)                    # path
-    ''', url, re.X)
-    if mo:
-        scheme = port = None
-        user, host, path = mo.groups()
-        return RemoteRepo(scheme, user, host, port, path)
+class RemoteRepo:
+    """Represents the parts of a remote repository."""
+    def __init__(self, scheme, user, host, port, path):
+        self.scheme = scheme or ''
+        self.user = user or ''
+        self.host = host or ''
+        self.port = port or ''
+        self.path = path or ''
+
+    def __repr__(self) -> str:
+        return "{}({},{},{},{},{})".format(
+            type(self).__name__,
+            self.scheme,
+            self.user,
+            self.host,
+            self.port,
+            self.path
+        )
+
+    @staticmethod
+    def parse_url(url:str) -> Self:
+        """Parse a URL that points to a remote git repository into
+        constituent parts."""
         
-    # Look for local file specified locations
-    return RemoteRepo('', '', '', '', url)
+        # Look for URL specified locations
+        mo = re.match(r'''
+            (\w+)://                # scheme,   exclude ://
+            ([^/?#@:]+@)?           # user,     include @
+            ([^/?#@:]+)             # host
+            (:\d+)?                 # port,     include :
+            (/.*)                   # path
+        ''', url, re.X)
+        
+        if mo:
+            # Extract and clean the parts of the URL
+            return RemoteRepoUrl(*mo.groups())
+
+        # Look for SCP specified locations, translate them
+        # into SSH style
+        mo = re.match(r'''
+            ([^/?#@:]+@)?           # user,     include @
+            ([^/?#@:]*)             # host
+            :
+            (.*)                    # path
+        ''', url, re.X)
+        if mo:
+            scheme = port = None
+            user, host, path = mo.groups()
+            return RemoteRepoScp(scheme, user, host, port, path)
+            
+        # Look for local file specified locations
+        if url.startswith('file://'):
+            return RemoteRepoFile('file://', '', '', '', url[7:])
+        return RemoteRepoFile('', '', '', '', url)
+
+    def deparse(self):
+        raise NotImplementedError('deparse')
+    
+    def join_url(self, relative:str):
+        p = self.path
+        if relative.startswith('/'):
+            relative = relative[1:]
+            p = ''
+        
+        while relative.startswith('../'):
+            relative = relative[3:]
+            p, _, _ = p.rpartition('/')
+
+        if relative:
+            p = p + '/' + relative
+        
+        return type(self)(self.scheme, self.user, self.host, self.port, p)
+
+class RemoteRepoUrl(RemoteRepo):
+    """Represents the parts of a remote repository in URL format."""
+
+    def deparse(self):
+        return f'{self.scheme}://{self.user}{self.host}{self.port}{self.path}'
+
+class RemoteRepoScp(RemoteRepo):
+    """Represents the parts of a remote repository in SCP format."""
+
+    def deparse(self):
+        return f'{self.user}{self.host}:{self.path}'
+
+class RemoteRepoFile(RemoteRepo):
+    """Represents the parts of a remote repository in file format."""
+
+    def deparse(self):
+        return self.host + self.path
 
 def get_submodules_file(repo_path:Path) -> str:
     """Gets the Git .gitmodules file from the head of repo.
@@ -145,16 +216,24 @@ def get_submodules_file(repo_path:Path) -> str:
     
     
     result = subprocess.run(
-        ['git', 'show', '@:.gitmodules'],
+        ['git', 'show', 'HEAD:.gitmodules'],
         capture_output=True,
         cwd=repo_path,
         encoding='utf-8'
     )
     if result.returncode:
         if "'.gitmodules' does not exist" in result.stderr:
+            # No submodules
             return None
+        
+        if "invalid object name 'HEAD'" in result.stderr:
+            # No commits
+            return None
+        
         if 'not a git repository' in result.stderr:
             raise FileNotFoundError(f'Not a git repository: {repo_path}')
+        
+        log.error('unknown error in get_submodules_file(%s): %s', repo_path, result.stderr)
         result.check_returncode()
 
     return result.stdout

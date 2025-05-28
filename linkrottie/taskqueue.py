@@ -15,60 +15,125 @@ task to mirror that submodules.  And so on and so on until all the tasks
 are complete, and then the program is done.
 """
 
+import queue
+import threading
 import logging
 
 log = logging.getLogger(__name__)
 
-class TaskQueue:
-	"""Single-threaded, simple implementation of a TaskQueue.
-	
-	Ideally this would be smartened up through the use of concurrent.futures
-	and a ThreadPoolExecutor, but that's a job for later; this is easy for now.
-	"""
-	
-	def __init__(self):
-		self._queue = []
-		self._next_task = 1
-	
-	def append(self, task, *args, desc=None, **kwargs):
-		"""Append a task to the queue.
-		
-		Args:
-			desc: Logging description for this task.
-			
-			Other arguments are passed to the task when called.
-		"""
-		
-		if desc is None:
-			desc = f'task_{self._next_task}'
-		log.debug("Queuing {%s}", desc)
-		self._next_task += 1
-		self._queue.append((task, desc, args, kwargs))
+class SingleTaskQueue:
+    """Single-threaded, simple implementation of a TaskQueue.
+    
+    Ideally this would be smartened up through the use of concurrent.futures
+    and a ThreadPoolExecutor, but that's a job for later; this is easy for now.
+    """
+    
+    def __init__(self):
+        self._queue = []
+        self._next_task = 1
+    
+    def append(self, task, *args, desc=None, **kwargs):
+        """Append a task to the queue.
+        
+        Args:
+            desc: Logging description for this task.
+            
+            Other arguments are passed to the task when called.
+        """
+        
+        if desc is None:
+            desc = f'task_{self._next_task}'
+        log.debug("Queuing {%s}", desc)
+        self._next_task += 1
+        self._queue.append((task, desc, args, kwargs))
 
-	def runnext(self):
-		"""Executes the next event from the queue.
-		
-		Raises IndexError if the queue is empty.
-		"""
-		
-		(task, desc, args, kwargs) = self._queue.pop(0)
-		log.debug("Executing {%s,%s,%s}", desc, args, kwargs)
-		task(*args, **kwargs)
-		log.debug("Completed {%s}", desc)
-	
-	def runall(self):
-		"""Executes all events in the queue.
-		
-		This includes new events added to the queue by events in the queue.
-		"""
-		while self._queue:
-			self.runnext()
-			
-	def __len__(self):
-		return len(self._queue)
+    def runnext(self):
+        """Executes the next event from the queue.
+        
+        Raises IndexError if the queue is empty.
+        """
+        
+        (task, desc, args, kwargs) = self._queue.pop(0)
+        log.debug("Executing {%s,%s,%s}", desc, args, kwargs)
+        task(*args, **kwargs)
+        log.debug("Completed {%s}", desc)
+    
+    def runall(self):
+        """Executes all events in the queue.
+        
+        This includes new events added to the queue by events in the queue.
+        """
+        while self._queue:
+            self.runnext()
+            
+    def __len__(self):
+        return len(self._queue)
 
-_tq = TaskQueue()
+
+class ThreadedTaskQueue:
+    """Multi-threaded implementation of a TaskQueue.
+
+    Args:
+        max_tasks: Maximum number of simultaneous tasks to execute.
+
+    """
+    
+    def __init__(self, max_tasks:int = 4):
+        self._lock = threading.Lock()
+        self._queue = queue.Queue()
+        self._next_task = 1
+        self._threads = [
+            threading.Thread(target=self._runthread, daemon=True)
+                for _ in range(max_tasks)
+        ]
+    
+    def append(self, task, *args, desc=None, **kwargs):
+        """Append a task to the queue.
+        
+        Args:
+            desc: Logging description for this task.
+            
+            Other arguments are passed to the task when called.
+        """
+        
+        if desc is None:
+            desc = f'task_{self._next_task}'
+        log.debug("Queuing {%s}", desc)
+
+        with self._lock:
+            self._next_task += 1
+        self._queue.put((task, desc, args, kwargs))
+
+    def runnext(self):
+        """Executes the next event from the queue."""
+        
+        (task, desc, args, kwargs) = self._queue.get()
+        log.debug("Executing {%s,%s,%s}", desc, args, kwargs)
+        task(*args, **kwargs)
+        self._queue.task_done()
+        log.debug("Completed {%s}, %d items in queue", desc, len(self))
+
+    def _runthread(self):
+        """Executes queue events while possible."""
+
+        while True:
+            self.runnext()
+    
+    def runall(self):
+        """Executes all events in the queue.
+        
+        This includes new events added to the queue by events in the queue.
+        """
+        
+        for t in self._threads:
+            t.start()
+        self._queue.join()
+            
+    def __len__(self):
+        return self._queue.qsize()
+
+_tq = ThreadedTaskQueue()   
 
 def taskqueue():
-	"""Return the global TaskQueue."""
-	return _tq
+    """Return the global TaskQueue."""
+    return _tq

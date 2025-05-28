@@ -26,7 +26,7 @@ def main(argv = None):
         level = logging.INFO
     else:
         level = logging.WARNING
-    logging.basicConfig(level=level)
+    logging.basicConfig(level=level, filename='linkrottie.log')
     
     # Read the options file
     log.debug('Parsing configuration file %s', argns.config)

@@ -4,6 +4,9 @@ git = 'storage/git'
 [local.aliases]
 # The aliases map allows remapping of existing URLs onto replacement ones.
 'git://git.buildroot.net/buildroot' = 'https://gitlab.com/buildroot.org/buildroot/'
+'https://github.com/osvvm' = 'https://github.com/OSVVM'
+'git@github.com:osvvm' = 'git@github:OSVVM'
+'https://www.github.com' = 'https://github.com'
 
 [gather]
 local = true
@@ -15,5 +18,5 @@ remotes = [
 
 [gather.github.highland-technology-inc]
 auth_key_file = './API_KEY'
-ignore = ['OsvvmLibraries', 'template-fw', 'common-fw', 'FreeRTOS-Kernel', 'STM32CubeF2', 'buildroot']
-dry_run = true
+ignore = ['OsvvmLibraries', 'FreeRTOS-Kernel', 'STM32CubeF2', 'buildroot']
+dry_run = false
