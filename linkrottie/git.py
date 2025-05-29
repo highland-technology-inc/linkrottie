@@ -19,8 +19,25 @@ class Local:
     
     def __init__(self, config:dict):
         self.path = Path(config.get('git', 'git'))
-        self.aliases = config.get('aliases', {})
         self.already_mirrored = []
+        try:
+            aliases = config['aliases']
+            self.aliases_text = aliases.get('text', {})
+            regexes = aliases.get('regex', {})
+
+            # Evaluate all the regexes now; let them fail as early as possible.
+            self.aliases_regex = rex = []
+            for original, replacement in regexes.items():
+                try:
+                    pat = re.compile(original, re.I)
+                except re.error as e:
+                    log.error('bad regex local.aliases.regex: %s', e.msg)
+                else:
+                    rex.append((pat, replacement))
+
+        except KeyError:
+            self.aliases_text = {}
+            self.aliases_regex = []
     
     def _clone(self, remote:str, local:Path):
         """Make a mirror clone of the git repository at remote."""
@@ -38,7 +55,7 @@ class Local:
         )
         if result.returncode:
             log.error("git clone --mirror %s %s returned with %s: %s",
-                remote, local.name, result.returncode, result.stderr
+                remote, local.name, result.returncode, result.stderr or result.stdout
             )
             
     def _update(self, local:Path):
@@ -51,8 +68,8 @@ class Local:
             cwd = local
         )
         if result.returncode:
-            log.error("git remote update %s returned with %s: %s",
-                local.name, result.returncode, result.stderr
+            log.error("git remote update of %s returned with %s: %s",
+                local.name, result.returncode, result.stderr or result.stdout
             )
     
     def _get_submodules(self, local:Path):
@@ -79,11 +96,17 @@ class Local:
         """
 
         # First, map the remote URL against any aliases that might apply
-        for original, replacement in self.aliases.items():
-            if remote.startswith(original):
-                remote = remote.replace(original, replacement)
-                break
+        originalremote = remote
+        for original, replacement in self.aliases_text.items():
+            remote = remote.replace(original, replacement)
 
+        for original, replacement in self.aliases_regex:
+            remote = re.sub(original, replacement, remote)
+
+        if remote != originalremote:
+            log.debug('Translated %s to %s', originalremote, remote)
+
+        # Use the remote URL to determine the local storage path
         repo = RemoteRepo.parse_url(remote)
         local = self.path / repo.host / repo.path.lstrip('/')
         
@@ -91,12 +114,14 @@ class Local:
             log.debug('Already evalulated %s', local)
             return
 
+        # Make a new clone or update an existing one as appropriate.
         if not local.is_dir():
             self._clone(remote, local)
         else:
             self._update(local)    
         self.already_mirrored.append(local)
         
+        # Queue any submodules of this repo for mirroring as well.
         tq = taskqueue()
         for url in self._get_submodules(local):
             if url.startswith('..') or url.startswith('/'):

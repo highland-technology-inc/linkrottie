@@ -1,12 +1,35 @@
+###################################################################################
+# local
+
 [local]
 git = 'storage/git'
 
-[local.aliases]
-# The aliases map allows remapping of existing URLs onto replacement ones.
+[local.aliases.text]
+# The aliases.text map allows for case-sensitive simple text substitution between URLs
+# requested by a gather of some kind and the URL actually used for the remote repository.
+#
+# This also affects the local storage location, as it follows the actual URL after
+# substitution.
+#
+# All local.aliases.text substitutions are performed in the order listed below.
+#
+
 'git://git.buildroot.net/buildroot' = 'https://gitlab.com/buildroot.org/buildroot/'
-'https://github.com/osvvm' = 'https://github.com/OSVVM'
-'git@github.com:osvvm' = 'git@github:OSVVM'
-'https://www.github.com' = 'https://github.com'
+
+[local.aliases.regex]
+# The aliases.regex map allows for Python regex substitution.  This is more powerful,
+# but more complex, than simple text substitution.  These substitutions are case-insensitive.
+#
+# The use of single-quote strings to avoid escaping is highly recommended here.
+#
+# All local.aliases.regex are performed in the order listed below, after local.aliases.text
+# substitutions have been performed.
+
+'\bosvvm/'  = 'OSVVM/'      # Always capitalize OSVVM an organiation
+'\bwww\.'   = ''            # Remove any www. from URLs.
+
+###################################################################################
+# gather
 
 [gather]
 local = true
