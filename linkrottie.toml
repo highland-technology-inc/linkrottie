@@ -2,7 +2,7 @@
 # local
 
 [local]
-git = 'storage/git'
+git = 'storage/git'     # Directory to store local git repositories
 
 [local.aliases.text]
 # The aliases.text map allows for case-sensitive simple text substitution between URLs
@@ -14,7 +14,7 @@ git = 'storage/git'
 # All local.aliases.text substitutions are performed in the order listed below.
 #
 
-'git://git.buildroot.net/buildroot' = 'https://gitlab.com/buildroot.org/buildroot/'
+'git://git.buildroot.net/buildroot' = 'https://gitlab.com/buildroot.org/buildroot.git'
 
 [local.aliases.regex]
 # The aliases.regex map allows for Python regex substitution.  This is more powerful,
@@ -32,14 +32,19 @@ git = 'storage/git'
 # gather
 
 [gather]
-local = true
-remotes = [
-    'ssh://git@github.com/highland-technology-inc/PyPadsParser.git',
-    'git@github.com:highland-technology-inc/23E940.git',
-    'git@github.com:highland-technology-inc/p940-brlinux.git'
-]
+# Set this true to update all git repositories in the local.git storage, even
+# if nothing else calls for them.  Not yet implemented.
+# local = true
 
+# URLs for specific remote repositories to also fetch.
+# remotes = ['https://github.com/highland-technology-inc/linkrottie.git]
+
+# gather.github entries fetch all of a given organization's repositories using
+# the Github API.
+# 
 [gather.github.highland-technology-inc]
-auth_key_file = './API_KEY'
+auth_key_file = './API_KEY'     # File containing the API authentication key
+dry_run = false                 # Set dry_run to only see which repositories would be fetched, but not do it.
+
+# The ignore list is for repositories that should not be gathered.
 ignore = ['OsvvmLibraries', 'FreeRTOS-Kernel', 'STM32CubeF2', 'buildroot']
-dry_run = false
