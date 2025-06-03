@@ -5,6 +5,7 @@ from collections import namedtuple
 from pathlib import Path
 from urllib.parse import urljoin
 from typing import Self
+from threading import Lock
 
 from .taskqueue import taskqueue
 
@@ -19,7 +20,11 @@ class Local:
     
     def __init__(self, config:dict):
         self.path = Path(config.get('git', 'git'))
-        self.already_mirrored = []
+
+        self._ar_lock = Lock()
+        with self._ar_lock:
+            self.already_requested = []
+
         try:
             aliases = config['aliases']
             self.aliases_text = aliases.get('text', {})
@@ -110,16 +115,17 @@ class Local:
         repo = RemoteRepo.parse_url(remote)
         local = self.path / repo.host / repo.path.lstrip('/')
         
-        if local in self.already_mirrored:
-            log.debug('Already evalulated %s', local)
-            return
+        with self._ar_lock:
+            if local in self.already_requested:
+                log.debug('Already evalulated %s', local)
+                return
+            self.already_requested.append(local)
 
         # Make a new clone or update an existing one as appropriate.
         if not local.is_dir():
             self._clone(remote, local)
         else:
             self._update(local)    
-        self.already_mirrored.append(local)
         
         # Queue any submodules of this repo for mirroring as well.
         tq = taskqueue()
