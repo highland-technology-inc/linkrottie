@@ -1,4 +1,4 @@
-__version__ = '0.0.1.dev1'
+from .version import __version__
 
 def cmdline():
     from . import main
